@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CLOUD-X | Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-deep: #030508;
+            --surface: rgba(10, 15, 29, 0.88);
+            --border-glow: rgba(0, 210, 255, 0.35);
+            --primary: #00d2ff;
+            --primary-glow: rgba(0, 210, 255, 0.5);
+            --accent: #3a7bd5;
+            --text-main: #ffffff;
+            --text-muted: #8a9bb8;
+            --success: #00ff88;
+            --error: #ff4757;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            letter-spacing: -0.2px;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-deep);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 16px;
+            overflow-x: hidden;
+        }
+
+        .ambient-glow {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            background: 
+                radial-gradient(circle at 10% 10%, rgba(0, 210, 255, 0.06) 0%, transparent 40%),
+                radial-gradient(circle at 90% 90%, rgba(58, 123, 213, 0.06) 0%, transparent 40%);
+            z-index: -2;
+        }
+
+        .cyber-grid {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            background-image: linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+            background-size: 40px 40px;
+            z-index: -1;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .top-header {
+            width: 100%;
+            text-align: center;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            margin-bottom: 5px;
+        }
+
+        .logo-area {
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .logo-area span {
+            color: var(--primary);
+            text-shadow: 0 0 18px var(--primary-glow);
+        }
+
+        .sub-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            width: 100%;
+        }
+
+        .profile-icon-btn {
+            background: var(--surface);
+            border: 1px solid var(--border-glow);
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary);
+            cursor: pointer;
+            transition: 0.3s;
+            font-size: 16px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+        }
+
+        .profile-icon-btn:hover {
+            background: rgba(0, 210, 255, 0.15);
+            border-color: var(--primary);
+            box-shadow: 0 0 15px var(--primary-glow);
+        }
+
+        .server-badge {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--success);
+            background: rgba(0, 255, 136, 0.06);
+            border: 1px solid rgba(0, 255, 136, 0.2);
+            padding: 6px 12px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .blink-dot {
+            width: 5px;
+            height: 5px;
+            background-color: var(--success);
+            border-radius: 50%;
+            box-shadow: 0 0 8px var(--success);
+        }
+
+        /* Left Popup Drawer Panel */
+        .drawer-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(3, 5, 8, 0.7);
+            backdrop-filter: blur(8px);
+            z-index: 999;
+            opacity: 0;
+            visibility: hidden;
+            transition: 0.3s ease;
+        }
+
+        .drawer-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .left-drawer {
+            position: fixed;
+            top: 0;
+            left: -300px;
+            width: 280px;
+            height: 100%;
+            background: rgba(8, 12, 22, 0.98);
+            border-right: 1px solid var(--border-glow);
+            box-shadow: 10px 0 30px rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            padding: 24px 20px;
+            transition: left 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+            overflow-y: auto;
+        }
+
+        .left-drawer.active {
+            left: 0;
+        }
+
+        .drawer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+
+        .drawer-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .close-drawer {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 16px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .close-drawer:hover {
+            color: var(--text-main);
+        }
+
+        .drawer-section-title {
+            font-size: 10px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            font-weight: 700;
+            margin-bottom: 8px;
+            letter-spacing: 0.8px;
+        }
+
+        .drawer-details-box {
+            background: rgba(3, 5, 8, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 12px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .detail-item span.lbl {
+            font-size: 9.5px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .detail-item span.val {
+            font-size: 12px;
+            color: var(--primary);
+            font-weight: 600;
+            word-break: break-all;
+        }
+
+        .drawer-menu-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: auto;
+        }
+
+        .menu-btn {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            padding: 11px 14px;
+            border-radius: 10px;
+            color: var(--text-main);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            transition: 0.3s;
+            font-size: 12px;
+            font-weight: 600;
+            text-align: left;
+            width: 100%;
+            text-decoration: none;
+        }
+
+        .menu-btn:hover {
+            background: rgba(0, 210, 255, 0.1);
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .menu-btn i {
+            font-size: 14px;
+            color: var(--primary);
+            width: 16px;
+            text-align: center;
+        }
+
+        .logout-menu-btn {
+            background: rgba(255, 71, 87, 0.08);
+            border: 1px solid rgba(255, 71, 87, 0.25);
+            color: var(--error);
+            margin-top: 15px;
+        }
+
+        .logout-menu-btn i {
+            color: var(--error);
+        }
+
+        .logout-menu-btn:hover {
+            background: rgba(255, 71, 87, 0.2);
+            border-color: var(--error);
+            color: var(--error);
+        }
+
+        /* Cards & Content Styling */
+        .card {
+            background: var(--surface);
+            backdrop-filter: blur(25px);
+            padding: 20px;
+            border-radius: 16px;
+            border: 1px solid var(--border-glow);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .card h3 {
+            font-size: 14px;
+            font-weight: 700;
+            margin-bottom: 14px;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+        }
+
+        .stat-box {
+            background: rgba(3, 5, 8, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 14px;
+            border-radius: 12px;
+        }
+
+        .stat-box span {
+            font-size: 10px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .stat-box h4 {
+            font-size: 16px;
+            margin-top: 4px;
+            color: var(--text-main);
+        }
+
+        .upload-box {
+            border: 2px dashed rgba(0, 210, 255, 0.3);
+            background: rgba(3, 5, 8, 0.4);
+            padding: 25px;
+            text-align: center;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .upload-box:hover {
+            border-color: var(--primary);
+            background: rgba(3, 5, 8, 0.7);
+        }
+
+        .upload-box i {
+            font-size: 28px;
+            color: var(--primary);
+            margin-bottom: 8px;
+        }
+
+        .upload-box p {
+            font-size: 11.5px;
+            color: var(--text-muted);
+        }
+
+        .files-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 5px;
+        }
+
+        .files-table th, .files-table td {
+            padding: 10px;
+            text-align: left;
+            font-size: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .files-table th {
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="ambient-glow"></div>
+    <div class="cyber-grid"></div>
+
+    <!-- Left Drawer Overlay -->
+    <div id="drawerOverlay" class="drawer-overlay" onclick="toggleDrawer()"></div>
+
+    <!-- Left Side Popup Drawer Panel -->
+    <div id="leftDrawer" class="left-drawer">
+        <div class="drawer-header">
+            <div class="drawer-title"><i class="fa-solid fa-user-shield"></i> User Control Center</div>
+            <button class="close-drawer" onclick="toggleDrawer()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <div class="drawer-section-title">Account Details</div>
+        <div class="drawer-details-box">
+            <div class="detail-item">
+                <span class="lbl">Username</span>
+                <span class="val" id="drawerUsername">cloudx_user</span>
+            </div>
+            <div class="detail-item">
+                <span class="lbl">Email Address</span>
+                <span class="val" id="drawerEmail">user@cloudx.internal</span>
+            </div>
+            <div class="detail-item">
+                <span class="lbl">Password Security</span>
+                <span class="val">••••••••••••</span>
+            </div>
+        </div>
+
+        <div class="drawer-section-title">Settings & Recovery</div>
+        <div class="drawer-menu-list">
+            <a href="/forgot-password" class="menu-btn">
+                <i class="fa-solid fa-key"></i> Forgot Password
+            </a>
+            <a href="/forgot-passkey" class="menu-btn">
+                <i class="fa-solid fa-fingerprint"></i> Forgot Passkey
+            </a>
+            
+            <a href="/login-page" class="menu-btn logout-menu-btn">
+                <i class="fa-solid fa-power-off"></i> Secure Logout
+            </a>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Top CLOUD X Heading -->
+        <div class="top-header">
+            <div class="logo-area">CLOUD <span>X</span></div>
+        </div>
+
+        <!-- Sub-header with Profile Button (Left) -->
+        <div class="sub-header">
+            <div class="profile-icon-btn" onclick="toggleDrawer()" title="Open Profile Menu">
+                <i class="fa-solid fa-bars-staggered"></i>
+            </div>
+            <div class="server-badge">
+                <div class="blink-dot"></div>
+                SECURE NODE ACTIVE
+            </div>
+        </div>
+
+        <!-- Storage Stats -->
+        <div class="card">
+            <h3><i class="fa-solid fa-chart-pie"></i> Infrastructure Metrics</h3>
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <span>Storage Used</span>
+                    <h4>45 GB / 100 GB</h4>
+                </div>
+                <div class="stat-box">
+                    <span>Active Servers</span>
+                    <h4>4 Nodes Online</h4>
+                </div>
+                <div class="stat-box">
+                    <span>Security Protocol</span>
+                    <h4 style="color: var(--success);">Encrypted</h4>
+                </div>
+            </div>
+        </div>
+
+        <!-- File Upload Section (Photo & Video Support) -->
+        <div class="card">
+            <h3><i class="fa-solid fa-cloud-arrow-up"></i> Secure Media Vault (Photos & Videos)</h3>
+            <div class="upload-box" onclick="document.getElementById('fileInput').click()">
+                <i class="fa-solid fa-folder-open"></i>
+                <p>Click here to select photos/videos or drag files to upload</p>
+                <input type="file" id="fileInput" style="display: none;" accept="image/*,video/*,.pdf,.zip" onchange="uploadFile(this)">
+            </div>
+        </div>
+
+        <!-- Stored Files List Table -->
+        <div class="card">
+            <h3><i class="fa-solid fa-file-shield"></i> Stored Vault Files</h3>
+            <table class="files-table">
+                <thead>
+                    <tr>
+                        <th>File Name</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="fileListBody">
+                    <tr>
+                        <td colspan="3" style="text-align: center; color: var(--text-muted);">No media uploaded yet.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        function toggleDrawer() {
+            const drawer = document.getElementById('leftDrawer');
+            const overlay = document.getElementById('drawerOverlay');
+            drawer.classList.toggle('active');
+            overlay.classList.toggle('active');
+        }
+
+        // Handle File Upload via JavaScript fetch
+        function uploadFile(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            alert('Uploading ' + file.name + ' to Cloud-X Storage...');
+
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert('File uploaded successfully!');
+                    addFileToTable(data.filename, file.type);
+                } else {
+                    alert('Upload failed: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred during file upload.');
+            });
+        }
+
+        // Dynamically add file to table row
+        function addFileToTable(filename, fileType) {
+            const tbody = document.getElementById('fileListBody');
+            if (tbody.querySelector('td[colspan="3"]')) {
+                tbody.innerHTML = ''; // Clear empty notice
+            }
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><i class="fa-solid fa-file-arrow-down" style="color: var(--primary); margin-right: 6px;"></i> ${filename}</td>
+                <td>${fileType ? fileType.split('/')[0].toUpperCase() : 'FILE'}</td>
+                <td><span style="color: var(--success); font-weight: 600;">Secured</span></td>
+            `;
+            tbody.appendChild(tr);
+        }
+    </script>
+</body>
+</html>
