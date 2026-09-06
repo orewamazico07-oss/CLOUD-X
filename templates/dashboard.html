@@ -205,11 +205,6 @@
             color: var(--text-muted);
             font-size: 16px;
             cursor: pointer;
-            transition: 0.2s;
-        }
-
-        .close-drawer:hover {
-            color: var(--text-main);
         }
 
         .drawer-section-title {
@@ -300,13 +295,7 @@
             color: var(--error);
         }
 
-        .logout-menu-btn:hover {
-            background: rgba(255, 71, 87, 0.2);
-            border-color: var(--error);
-            color: var(--error);
-        }
-
-        /* Cards & Content Styling */
+        /* Cards */
         .card {
             background: var(--surface);
             backdrop-filter: blur(25px);
@@ -406,7 +395,7 @@
     <!-- Left Drawer Overlay -->
     <div id="drawerOverlay" class="drawer-overlay" onclick="toggleDrawer()"></div>
 
-    <!-- Left Side Popup Drawer Panel -->
+    <!-- Left Side Popup Drawer Panel (Dynamic Username & Email from Flask Session) -->
     <div id="leftDrawer" class="left-drawer">
         <div class="drawer-header">
             <div class="drawer-title"><i class="fa-solid fa-user-shield"></i> User Control Center</div>
@@ -417,11 +406,11 @@
         <div class="drawer-details-box">
             <div class="detail-item">
                 <span class="lbl">Username</span>
-                <span class="val" id="drawerUsername">cloudx_user</span>
+                <span class="val">{{ username }}</span>
             </div>
             <div class="detail-item">
                 <span class="lbl">Email Address</span>
-                <span class="val" id="drawerEmail">user@cloudx.internal</span>
+                <span class="val">{{ email }}</span>
             </div>
             <div class="detail-item">
                 <span class="lbl">Password Security</span>
@@ -431,10 +420,10 @@
 
         <div class="drawer-section-title">Settings & Recovery</div>
         <div class="drawer-menu-list">
-            <a href="/forgot-password" class="menu-btn">
+            <a href="/login-page" class="menu-btn">
                 <i class="fa-solid fa-key"></i> Forgot Password
             </a>
-            <a href="/forgot-passkey" class="menu-btn">
+            <a href="/login-page" class="menu-btn">
                 <i class="fa-solid fa-fingerprint"></i> Forgot Passkey
             </a>
             
@@ -445,12 +434,10 @@
     </div>
 
     <div class="container">
-        <!-- Top CLOUD X Heading -->
         <div class="top-header">
             <div class="logo-area">CLOUD <span>X</span></div>
         </div>
 
-        <!-- Sub-header with Profile Button (Left) -->
         <div class="sub-header">
             <div class="profile-icon-btn" onclick="toggleDrawer()" title="Open Profile Menu">
                 <i class="fa-solid fa-bars-staggered"></i>
@@ -480,17 +467,17 @@
             </div>
         </div>
 
-        <!-- File Upload Section (Photo & Video Support) -->
+        <!-- File Upload Section -->
         <div class="card">
             <h3><i class="fa-solid fa-cloud-arrow-up"></i> Secure Media Vault (Photos & Videos)</h3>
             <div class="upload-box" onclick="document.getElementById('fileInput').click()">
                 <i class="fa-solid fa-folder-open"></i>
-                <p>Click here to select photos/videos or drag files to upload</p>
-                <input type="file" id="fileInput" style="display: none;" accept="image/*,video/*,.pdf,.zip" onchange="uploadFile(this)">
+                <p>Click here to upload photos or videos to Cloud-X & Telegram</p>
+                <input type="file" id="fileInput" style="display: none;" accept="image/*,video/*" onchange="uploadFile(this)">
             </div>
         </div>
 
-        <!-- Stored Files List Table -->
+        <!-- Stored Files List with Preview Option -->
         <div class="card">
             <h3><i class="fa-solid fa-file-shield"></i> Stored Vault Files</h3>
             <table class="files-table">
@@ -498,7 +485,7 @@
                     <tr>
                         <th>File Name</th>
                         <th>Type</th>
-                        <th>Status</th>
+                        <th>Action / Preview</th>
                     </tr>
                 </thead>
                 <tbody id="fileListBody">
@@ -518,7 +505,6 @@
             overlay.classList.toggle('active');
         }
 
-        // Handle File Upload via JavaScript fetch
         function uploadFile(input) {
             const file = input.files[0];
             if (!file) return;
@@ -526,7 +512,7 @@
             const formData = new FormData();
             formData.append('file', file);
 
-            alert('Uploading ' + file.name + ' to Cloud-X Storage...');
+            alert('Uploading ' + file.name + ' to Cloud-X & Telegram Group...');
 
             fetch('/upload', {
                 method: 'POST',
@@ -535,30 +521,32 @@
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
-                    alert('File uploaded successfully!');
-                    addFileToTable(data.filename, file.type);
+                    alert('File successfully uploaded & forwarded to Telegram!');
+                    addFileToTable(data.filename, file.type, file);
                 } else {
                     alert('Upload failed: ' + data.message);
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('An error occurred during file upload.');
+                alert('An error occurred during upload.');
             });
         }
 
-        // Dynamically add file to table row
-        function addFileToTable(filename, fileType) {
+        function addFileToTable(filename, fileType, fileObj) {
             const tbody = document.getElementById('fileListBody');
             if (tbody.querySelector('td[colspan="3"]')) {
-                tbody.innerHTML = ''; // Clear empty notice
+                tbody.innerHTML = '';
             }
+
+            const fileURL = URL.createObjectURL(fileObj);
+            const typeLabel = fileType.includes('image') ? 'IMAGE' : (fileType.includes('video') ? 'VIDEO' : 'FILE');
 
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td><i class="fa-solid fa-file-arrow-down" style="color: var(--primary); margin-right: 6px;"></i> ${filename}</td>
-                <td>${fileType ? fileType.split('/')[0].toUpperCase() : 'FILE'}</td>
-                <td><span style="color: var(--success); font-weight: 600;">Secured</span></td>
+                <td>${typeLabel}</td>
+                <td><a href="${fileURL}" target="_blank" style="color: var(--primary); text-decoration: none; font-weight: 600;"><i class="fa-solid fa-eye"></i> Preview</a></td>
             `;
             tbody.appendChild(tr);
         }
