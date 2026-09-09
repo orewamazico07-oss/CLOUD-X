@@ -113,12 +113,6 @@
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
         }
 
-        .profile-icon-btn:hover {
-            background: rgba(0, 210, 255, 0.15);
-            border-color: var(--primary);
-            box-shadow: 0 0 15px var(--primary-glow);
-        }
-
         .server-badge {
             font-size: 10px;
             font-weight: 600;
@@ -392,10 +386,8 @@
     <div class="ambient-glow"></div>
     <div class="cyber-grid"></div>
 
-    <!-- Left Drawer Overlay -->
     <div id="drawerOverlay" class="drawer-overlay" onclick="toggleDrawer()"></div>
 
-    <!-- Left Side Popup Drawer Panel (Dynamic Username & Email from Flask Session) -->
     <div id="leftDrawer" class="left-drawer">
         <div class="drawer-header">
             <div class="drawer-title"><i class="fa-solid fa-user-shield"></i> User Control Center</div>
@@ -444,21 +436,21 @@
             </div>
             <div class="server-badge">
                 <div class="blink-dot"></div>
-                SECURE NODE ACTIVE
+                ACTIVE SERVER - CLOUD X
             </div>
         </div>
 
-        <!-- Storage Stats -->
+        <!-- Dynamic Storage Metrics -->
         <div class="card">
             <h3><i class="fa-solid fa-chart-pie"></i> Infrastructure Metrics</h3>
             <div class="stats-grid">
                 <div class="stat-box">
                     <span>Storage Used</span>
-                    <h4>45 GB / 100 GB</h4>
+                    <h4 id="storageUsedText">0 KB</h4>
                 </div>
                 <div class="stat-box">
                     <span>Active Servers</span>
-                    <h4>4 Nodes Online</h4>
+                    <h4>1 Node Online</h4>
                 </div>
                 <div class="stat-box">
                     <span>Security Protocol</span>
@@ -472,12 +464,12 @@
             <h3><i class="fa-solid fa-cloud-arrow-up"></i> Secure Media Vault (Photos & Videos)</h3>
             <div class="upload-box" onclick="document.getElementById('fileInput').click()">
                 <i class="fa-solid fa-folder-open"></i>
-                <p>Click here to upload photos or videos to Cloud-X & Telegram</p>
+                <p>Click here to upload photos or videos to Cloud-X</p>
                 <input type="file" id="fileInput" style="display: none;" accept="image/*,video/*" onchange="uploadFile(this)">
             </div>
         </div>
 
-        <!-- Stored Files List with Preview Option -->
+        <!-- Stored Files List with Persistent History -->
         <div class="card">
             <h3><i class="fa-solid fa-file-shield"></i> Stored Vault Files</h3>
             <table class="files-table">
@@ -498,6 +490,8 @@
     </div>
 
     <script>
+        document.addEventListener("DOMContentLoaded", loadSavedFiles);
+
         function toggleDrawer() {
             const drawer = document.getElementById('leftDrawer');
             const overlay = document.getElementById('drawerOverlay');
@@ -512,7 +506,7 @@
             const formData = new FormData();
             formData.append('file', file);
 
-            alert('Uploading ' + file.name + ' to Cloud-X & Telegram Group...');
+            alert('Uploading ' + file.name + ' to Cloud-X...');
 
             fetch('/upload', {
                 method: 'POST',
@@ -521,8 +515,16 @@
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
-                    alert('File successfully uploaded & forwarded to Telegram!');
-                    addFileToTable(data.filename, file.type, file);
+                    alert('File successfully uploaded!');
+                    const fileURL = URL.createObjectURL(file);
+                    const fileData = {
+                        name: data.filename,
+                        type: file.type,
+                        size: file.size,
+                        url: fileURL
+                    };
+                    saveFileToLocalStorage(fileData);
+                    loadSavedFiles();
                 } else {
                     alert('Upload failed: ' + data.message);
                 }
@@ -533,22 +535,48 @@
             });
         }
 
-        function addFileToTable(filename, fileType, fileObj) {
+        function saveFileToLocalStorage(fileData) {
+            let files = JSON.parse(localStorage.getItem('cloudx_files')) || [];
+            files.push(fileData);
+            localStorage.setItem('cloudx_files', JSON.stringify(files));
+        }
+
+        function loadSavedFiles() {
             const tbody = document.getElementById('fileListBody');
-            if (tbody.querySelector('td[colspan="3"]')) {
-                tbody.innerHTML = '';
+            let files = JSON.parse(localStorage.getItem('cloudx_files')) || [];
+            
+            if (files.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="3" style="text-align: center; color: var(--text-muted);">No media uploaded yet.</td></tr>`;
+                document.getElementById('storageUsedText').innerText = "0 KB";
+                return;
             }
 
-            const fileURL = URL.createObjectURL(fileObj);
-            const typeLabel = fileType.includes('image') ? 'IMAGE' : (fileType.includes('video') ? 'VIDEO' : 'FILE');
+            tbody.innerHTML = '';
+            let totalBytes = 0;
 
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td><i class="fa-solid fa-file-arrow-down" style="color: var(--primary); margin-right: 6px;"></i> ${filename}</td>
-                <td>${typeLabel}</td>
-                <td><a href="${fileURL}" target="_blank" style="color: var(--primary); text-decoration: none; font-weight: 600;"><i class="fa-solid fa-eye"></i> Preview</a></td>
-            `;
-            tbody.appendChild(tr);
+            files.forEach(file => {
+                totalBytes += file.size;
+                const typeLabel = file.type && file.type.includes('image') ? 'IMAGE' : 'VIDEO';
+                
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><i class="fa-solid fa-file-arrow-down" style="color: var(--primary); margin-right: 6px;"></i> ${file.name}</td>
+                    <td>${typeLabel}</td>
+                    <td><a href="${file.url}" target="_blank" style="color: var(--primary); text-decoration: none; font-weight: 600;"><i class="fa-solid fa-eye"></i> Preview</a></td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            document.getElementById('storageUsedText').innerText = formatBytes(totalBytes);
+        }
+
+        function formatBytes(bytes, decimals = 2) {
+            if (bytes === 0) return '0 KB';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
         }
     </script>
 </body>
