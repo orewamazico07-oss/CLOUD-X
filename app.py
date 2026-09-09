@@ -1,7 +1,7 @@
 import os
 import sqlite3
 import requests
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_from_directory
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
@@ -32,7 +32,6 @@ def init_db():
     conn.commit()
     conn.close()
 
-# অ্যাপ চালুর সময় ডাটাবেজ তৈরি করে নেবে
 init_db()
 
 def allowed_file(filename):
@@ -160,7 +159,7 @@ def upload_file():
     
     return jsonify({"status": "error", "message": "File type not allowed"})
 
-# ইউজারের সেভ করা ফাইলগুলো ডাটাবেজ থেকে ফেচ করার নতুন রাউট
+# ইউজারের সেভ করা ফাইলগুলো ডাটাবেজ থেকে ফেচ করার রাউট
 @app.route('/get_files', methods=['GET'])
 def get_files():
     if 'username' not in session:
@@ -175,6 +174,11 @@ def get_files():
 
     file_list = [{"filename": row[0]} for row in rows]
     return jsonify({"files": file_list})
+
+# সার্ভার থেকে ফাইল প্রিভিউ বা ডাউনলোড করার রাউট
+@app.route('/uploads/<path:filename>')
+def uploaded_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
