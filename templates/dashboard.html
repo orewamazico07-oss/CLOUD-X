@@ -201,6 +201,30 @@
             cursor: pointer;
         }
 
+        .vault-access-btn {
+            background: linear-gradient(135deg, rgba(0, 210, 255, 0.15), rgba(58, 123, 213, 0.15));
+            border: 1px solid var(--border-glow);
+            color: var(--primary);
+            padding: 12px 14px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            margin-bottom: 20px;
+            text-decoration: none;
+            transition: 0.3s;
+            box-shadow: 0 4px 12px rgba(0, 210, 255, 0.1);
+        }
+
+        .vault-access-btn:hover {
+            background: linear-gradient(135deg, rgba(0, 210, 255, 0.25), rgba(58, 123, 213, 0.25));
+            border-color: var(--primary);
+            box-shadow: 0 0 15px var(--primary-glow);
+        }
+
         .drawer-section-title {
             font-size: 10px;
             text-transform: uppercase;
@@ -329,7 +353,7 @@
         }
 
         .stat-box h4 {
-            font-size: 16px;
+            font-size: 14px;
             margin-top: 4px;
             color: var(--text-main);
         }
@@ -394,6 +418,12 @@
             <button class="close-drawer" onclick="toggleDrawer()"><i class="fa-solid fa-xmark"></i></button>
         </div>
 
+        <!-- Vault Name Access Button Inside Menu -->
+        <a href="#vault-section" class="vault-access-btn" onclick="toggleDrawer()">
+            <span><i class="fa-solid fa-vault" style="margin-right: 8px;"></i> CLOUD-X VAULT</span>
+            <i class="fa-solid fa-chevron-right" style="font-size: 11px;"></i>
+        </a>
+
         <div class="drawer-section-title">Account Details</div>
         <div class="drawer-details-box">
             <div class="detail-item">
@@ -440,17 +470,17 @@
             </div>
         </div>
 
-        <!-- Dynamic Storage Metrics -->
+        <!-- Dynamic Storage Metrics with cloudX ViP -->
         <div class="card">
             <h3><i class="fa-solid fa-chart-pie"></i> Infrastructure Metrics</h3>
             <div class="stats-grid">
                 <div class="stat-box">
-                    <span>Server Status</span>
-                    <h4 style="color: var(--success);">Connected</h4>
+                    <span>Active Servers</span>
+                    <h4 style="color: var(--primary);">cloudX ViP</h4>
                 </div>
                 <div class="stat-box">
-                    <span>Active Servers</span>
-                    <h4>1 Node Online</h4>
+                    <span>Node Status</span>
+                    <h4 style="color: var(--success);">Online</h4>
                 </div>
                 <div class="stat-box">
                     <span>Security Protocol</span>
@@ -470,8 +500,8 @@
         </div>
 
         <!-- Stored Files List from Database -->
-        <div class="card">
-            <h3><i class="fa-solid fa-file-shield"></i> Stored Vault Files</h3>
+        <div class="card" id="vault-section">
+            <h3><i class="fa-solid fa-vault"></i> Stored Vault Files</h3>
             <table class="files-table">
                 <thead>
                     <tr>
@@ -515,8 +545,8 @@
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
-                    alert('File successfully uploaded and sent to Telegram!');
-                    loadDatabaseFiles(); // সার্ভার থেকে ফাইল লিস্ট রিলোড হবে
+                    alert('File successfully uploaded and saved to database!');
+                    loadDatabaseFiles();
                 } else {
                     alert('Upload failed: ' + data.message);
                 }
@@ -527,7 +557,6 @@
             });
         }
 
-        // ডাটাবেজ থেকে ইউজারের ফাইল লিস্ট ফেচ করার ফাংশন
         function loadDatabaseFiles() {
             const tbody = document.getElementById('fileListBody');
 
