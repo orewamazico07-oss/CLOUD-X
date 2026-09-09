@@ -186,7 +186,6 @@
             align-items: center;
         }
 
-        /* Left side icon inside input */
         .input-wrapper > i.fa-solid:first-child {
             position: absolute;
             left: 12px;
@@ -221,7 +220,6 @@
             color: var(--primary);
         }
 
-        /* Right side icons container (eye and validation icons) */
         .input-icons-right {
             position: absolute;
             right: 12px;
@@ -254,7 +252,6 @@
             color: var(--primary);
         }
 
-        /* Live Checklist - auto hides when criteria met */
         .live-checklist {
             display: flex;
             flex-direction: column;
@@ -611,41 +608,24 @@
                 return;
             }
 
- fetch('/signup', {
-    method: 'POST',
-    headers: {
-        'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-        full_name: fullName,
-        username: username,
-        email: email,
-        password: password
-    })
-})
-.then(response => response.json())
-.then(data => {
-    if (data.status === 'success') {
-        window.location.href = '/setup-passkey-page';
-    } else {
-        alert(data.message || 'Signup failed');
-    }
-})
-.catch(error => {
-    console.error('Error:', error);
-});
-
+            fetch('/signup', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    full_name: fullName,
+                    username: username,
+                    email: email,
+                    password: password
+                })
             })
             .then(response => response.json())
             .then(data => {
-                if(data.status === 'success') {
-                    alert("Signup Successful! Details sent to Telegram.");
-                    document.getElementById('signupForm').reset();
-                    document.querySelectorAll('.live-checklist').forEach(el => el.classList.remove('hidden'));
-                    document.querySelectorAll('.check-item').forEach(el => el.className = "check-item");
-                    document.querySelectorAll('.validation-icon').forEach(el => el.className = "validation-icon");
+                if (data.status === 'success') {
+                    window.location.href = '/setup-passkey-page';
                 } else {
-                    alert("Error: " + data.message);
+                    alert(data.message || 'Signup failed');
                 }
             })
             .catch(error => {
