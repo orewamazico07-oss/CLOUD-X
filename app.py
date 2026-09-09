@@ -7,7 +7,7 @@ from werkzeug.utils import secure_filename
 app = Flask(__name__)
 app.secret_key = 'cloud-x-secret-key-security'
 
-# Render-এর Environment Variable থেকে টেলিগ্রাম টোকেন ও মূল চ্যাট আইডি রিড করবে
+# Render-এর Environment Variable থেকে টেলিগ্রাম টোকেন ও চ্যাট আইডি রিড করবে
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
@@ -53,6 +53,15 @@ def dashboard():
     return render_template('dashboard.html', 
                            username=session.get('username'), 
                            email=session.get('email'))
+
+# ডেডিকেটেড ক্লাউড-এক্স ভল্ট পেজ রাউট
+@app.route('/vault')
+def vault_page():
+    if 'username' not in session:
+        return redirect(url_for('login_page'))
+    
+    return render_template('vault.html', 
+                           username=session.get('username'))
 
 @app.route('/signup', methods=['POST'])
 def signup():
