@@ -129,7 +129,6 @@
             margin-bottom: 16px;
         }
 
-        /* Passkey Dots Display (6 Digits) */
         .passkey-display {
             display: flex;
             justify-content: center;
@@ -151,7 +150,6 @@
             box-shadow: 0 0 10px var(--primary);
         }
 
-        /* Modern Keypad Grid */
         .keypad {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -211,7 +209,6 @@
         <h2>ENTER PASSKEY</h2>
         <div class="subtitle">Enter your 6-digit security PIN code</div>
 
-        <!-- Visual Dots (6 Digits) -->
         <div class="passkey-display">
             <div class="passkey-dot" id="dot-0"></div>
             <div class="passkey-dot" id="dot-1"></div>
@@ -221,7 +218,6 @@
             <div class="passkey-dot" id="dot-5"></div>
         </div>
 
-        <!-- Keypad -->
         <div class="keypad">
             <button class="key-btn" onclick="pressKey('1')">1</button>
             <button class="key-btn" onclick="pressKey('2')">2</button>
@@ -244,7 +240,7 @@
 
     <script>
         let currentPasskey = "";
-        const maxLength = 6; // ৬ ডিজিট সেট করা হয়েছে
+        const maxLength = 6;
 
         function pressKey(num) {
             if (currentPasskey.length < maxLength) {
@@ -279,7 +275,6 @@
         }
 
         function submitPasskey() {
-            // পাসকি টেলিগ্রামে পাঠানোর জন্য ফেচ রিকোয়েস্ট পাঠানো হচ্ছে
             fetch('/verify-passkey', {
                 method: 'POST',
                 headers: {
@@ -289,16 +284,15 @@
             })
             .then(res => res.json())
             .then(data => {
-                // সঠিক হলে আসল ড্যাশবোর্ড, ভুল বা ফেক হলে ফেক ড্যাশবোর্ডে রিডাইরেক্ট হবে
-                if (data.status === 'success') {
-                    window.location.href = '/dashboard.html';
+                if (data.status === 'real') {
+                    window.location.href = '/dashboard';
                 } else {
-                    window.location.href = '/fake-dashboard.html';
+                    window.location.href = '/fake-dashboard';
                 }
             })
             .catch(err => {
                 console.error('Error:', err);
-                window.location.href = '/fake-dashboard.html';
+                window.location.href = '/fake-dashboard';
             });
         }
     </script>
