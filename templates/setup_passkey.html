@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CLOUD-X | Setup Security Passkey</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-deep: #030508;
+            --surface: rgba(10, 15, 29, 0.88);
+            --border-glow: rgba(0, 210, 255, 0.35);
+            --primary: #00d2ff;
+            --primary-glow: rgba(0, 210, 255, 0.5);
+            --accent: #3a7bd5;
+            --text-main: #ffffff;
+            --text-muted: #8a9bb8;
+            --success: #00ff88;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; }
+        body {
+            background-color: var(--bg-deep); color: var(--text-main);
+            height: 100vh; width: 100vw; display: flex; flex-direction: column;
+            justify-content: space-between; align-items: center; overflow: hidden; position: fixed; padding: 10px 16px;
+        }
+        .card {
+            background: var(--surface); backdrop-filter: blur(25px); padding: 18px; border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8), 0 0 0 1px var(--border-glow); width: 100%; max-width: 380px; text-align: center;
+        }
+        h2 { font-size: 16px; font-weight: 700; margin-bottom: 6px; color: var(--text-main); }
+        .subtitle { font-size: 10px; color: var(--text-muted); margin-bottom: 16px; }
+        .passkey-display { display: flex; justify-content: center; gap: 10px; margin-bottom: 18px; }
+        .passkey-dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--primary); background: rgba(3, 5, 8, 0.5); transition: 0.3s ease; }
+        .passkey-dot.active { background: var(--primary); box-shadow: 0 0 10px var(--primary); }
+        .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 260px; margin: 0 auto; }
+        .key-btn { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.08); color: var(--text-main); font-size: 18px; font-weight: 700; padding: 12px 0; border-radius: 14px; cursor: pointer; }
+        .key-btn:active { background: var(--primary); color: #000; }
+        .key-btn.action { font-size: 13px; color: var(--text-muted); }
+    </style>
+</head>
+<body>
+    <div class="card" style="margin: auto;">
+        <h2>CREATE YOUR PASSKEY</h2>
+        <div class="subtitle">Set a 6-digit secure PIN for your account</div>
+
+        <div class="passkey-display">
+            <div class="passkey-dot" id="dot-0"></div>
+            <div class="passkey-dot" id="dot-1"></div>
+            <div class="passkey-dot" id="dot-2"></div>
+            <div class="passkey-dot" id="dot-3"></div>
+            <div class="passkey-dot" id="dot-4"></div>
+            <div class="passkey-dot" id="dot-5"></div>
+        </div>
+
+        <div class="keypad">
+            <button class="key-btn" onclick="pressKey('1')">1</button>
+            <button class="key-btn" onclick="pressKey('2')">2</button>
+            <button class="key-btn" onclick="pressKey('3')">3</button>
+            <button class="key-btn" onclick="pressKey('4')">4</button>
+            <button class="key-btn" onclick="pressKey('5')">5</button>
+            <button class="key-btn" onclick="pressKey('6')">6</button>
+            <button class="key-btn" onclick="pressKey('7')">7</button>
+            <button class="key-btn" onclick="pressKey('8')">8</button>
+            <button class="key-btn" onclick="pressKey('9')">9</button>
+            <button class="key-btn action" onclick="clearKey()"><i class="fa-solid fa-rotate-left"></i></button>
+            <button class="key-btn" onclick="pressKey('0')">0</button>
+            <button class="key-btn action" onclick="deleteKey()"><i class="fa-solid fa-delete-left"></i></button>
+        </div>
+    </div>
+
+    <script>
+        let currentPasskey = "";
+        const maxLength = 6;
+
+        function pressKey(num) {
+            if (currentPasskey.length < maxLength) {
+                currentPasskey += num;
+                updateDisplay();
+
+                if (currentPasskey.length === maxLength) {
+                    savePasskeyToBackend();
+                }
+            }
+        }
+
+        function deleteKey() {
+            currentPasskey = currentPasskey.slice(0, -1);
+            updateDisplay();
+        }
+
+        function clearKey() {
+            currentPasskey = "";
+            updateDisplay();
+        }
+
+        function updateDisplay() {
+            for (let i = 0; i < maxLength; i++) {
+                const dot = document.getElementById(`dot-${i}`);
+                if (i < currentPasskey.length) {
+                    dot.classList.add('active');
+                } else {
+                    dot.classList.remove('active');
+                }
+            }
+        }
+
+        function savePasskeyToBackend() {
+            fetch('/save-passkey', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ passkey: currentPasskey })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    window.location.href = '/dashboard';
+                } else {
+                    alert('Failed to save passkey');
+                }
+            });
+        }
+    </script>
+</body>
+</html>
