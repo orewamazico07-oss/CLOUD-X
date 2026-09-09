@@ -611,15 +611,30 @@
                 return;
             }
 
-            fetch('/signup', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    full_name: fullName,
-                    username: username,
-                    email: email,
-                    password: password
-                })
+ fetch('/signup', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+        full_name: fullName,
+        username: username,
+        email: email,
+        password: password
+    })
+})
+.then(response => response.json())
+.then(data => {
+    if (data.status === 'success') {
+        window.location.href = '/setup-passkey-page';
+    } else {
+        alert(data.message || 'Signup failed');
+    }
+})
+.catch(error => {
+    console.error('Error:', error);
+});
+
             })
             .then(response => response.json())
             .then(data => {
